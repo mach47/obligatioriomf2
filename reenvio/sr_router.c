@@ -9,6 +9,7 @@
  *
  **********************************************************************/
 
+#include <netinet/in.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -186,53 +187,82 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         char *interface /* lent */,
         sr_ethernet_hdr_t *eHdr) {
 
-    sr_ip_hdr_t *header = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-    int esMio = 0; /* A CHEQUEAR*/
+    sr_ip_hdr_t *hdr_ip = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
-    /* Comprobar si la IP de destino es alguna de las interfaces locales */
-    struct sr_if *interfaz = sr->if_list;
-    while (interfaz) {
-        if (interfaz->ip == header->ip_dst) {
-            esMio = 1; /* p2 a febrero*/
-            break;
+    /* ver si la iface dst es del sr */
+    struct sr_if *found_if = sr_get_interface_given_ip(sr, hdr_ip -> ip_dst);
+
+    if (!found_if)      /* no es iface del sr */ 
+    {
+        /* TTL muere */
+        if (hdr_ip->ip_ttl <= 1) 
+        {
+            sr_send_icmp_error_packet(11, 0, sr, hdr_ip->ip_src, packet);      /* estaba err aca tmb */
+            return;
         }
-        interfaz = interfaz->next;
-    }
 
-    if (esMio) {
-        if (header->ip_p == ip_protocol_icmp) {
-            sr_icmp_hdr_t *header_icmp =
-            (sr_icmp_hdr_t *)((uint8_t *)header + sizeof(sr_ip_hdr_t));
+        hdr_ip->ip_ttl--;
+        hdr_ip->ip_sum = 0;
+        hdr_ip->ip_sum = cksum(hdr_ip, sizeof(sr_ip_hdr_t));    /* recalculo cambio ttl */
 
-            if (header_icmp->icmp_type == 8) {
-              sr_send_icmp_error_packet(0,0,sr,header->ip_dst,packet);
-              return;
-            }
+        /* reenvio */
+
+        /* rezo pq este bien ese codigo :) */
+        struct sr_rt *entrada = sr_encontrar_entrada(sr, hdr_ip -> ip_dst);
+        if (!entrada) return; /* ni idea gg */
+
+        /* prefiero gateway */
+        uint32_t next_hop = (entrada -> gw.s_addr !=0)? entrada -> gw.s_addr : hdr_ip -> ip_dst;
+
+        struct sr_if *iface_salida = sr_get_interface(sr, entrada -> interface);
+        if (!iface_salida) return;  /* ggs */
+
+        /* busco en cache mac del nexthop */
+        struct sr_arpentry *arp_entry = sr_arpcache_lookup(&sr -> cache, next_hop);
+        if (!arp_entry)     
+        {
+            /* mando arp */
+            sr_arpcache_queuereq(&sr -> cache, next_hop, packet, len, iface_salida -> name);
+            return;     
         }
+
+        /* en cache */
+        /* cambio direcciones eth para next hop */
+        memcpy(eHdr->ether_dhost, arp_entry -> mac, ETHER_ADDR_LEN);      
+        memcpy(eHdr->ether_shost, iface_salida -> addr, ETHER_ADDR_LEN);  
+
+        sr_send_packet(sr, packet, len, iface_salida -> name);
+
+        free(arp_entry);
+    }
+
+    /* es para iface sr */
+
+    uint8_t protocol = hdr_ip -> ip_p;     
+
+    if (protocol == ip_protocol_icmp)   
+    {
+        /* check creo q bien */
+        sr_icmp_hdr_t *hdr_icmp = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+        /* check checksum xd */
+        int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+        if (icmp_cksum(hdr_icmp, icmp_len) != hdr_icmp -> icmp_sum) return;     /* checksum mal */
+
+        /* Echo Req */
+        if ( hdr_icmp -> icmp_type == 8 && hdr_icmp -> icmp_code == 0)       
+        {     
+            fprintf(stderr, "MANDO ECHO REPLY (supuestamente)\n");
+            sr_send_icmp_error_packet(0, 0, sr, hdr_ip -> ip_src, packet);   /* casi seguro habia err aca */
+        }                                                                     /* decia ip_dst */
         return;
+    } 
+    else if (protocol == IPPROTO_TCP || protocol == IPPROTO_UDP)   
+    {
+        sr_send_icmp_error_packet(3, 3, sr, hdr_ip -> ip_src, packet);   /* port unreachable */
     }
 
-    /* No es para mÃ­: reenviar o generar ICMP Time Exceeded */
-    if (header->ip_ttl <= 1) {
-              sr_send_icmp_error_packet(11,0,sr,header->ip_dst,packet);
-        return;
-    }
-
-    header->ip_ttl--;
-    header->ip_sum = 0;
-    header->ip_sum = cksum(header, sizeof(sr_ip_hdr_t));
-
-    /* Buscar mejor ruta */
-    struct sr_rt *entrada = sr_encontrar_entrada(sr, header->ip_dst);
-    if (entrada) {
-        sr_arpcache_queuereq(&(sr->cache),
-                             entrada->gw.s_addr,
-                             packet,
-                             len,
-                             entrada->interface);
-    } else {
-        sr_send_icmp_error_packet(3,0,sr,header->ip_dst,packet);
-    }
+    return;
 }
 
 
