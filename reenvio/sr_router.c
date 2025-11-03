@@ -120,12 +120,11 @@ void sr_send_icmp_error_packet(uint8_t type,
   eth->ether_type = htons(ethertype_ip); 
 
   /* IP: versión, header length, TOS, longitud total, id, offset, TTL, protocolo (ICMP), checksum, IP origen, IP destino*/
-  ip->ip_v = 4;
-  ip->ip_hl = 5;
+  
   ip->ip_tos = 0;
   ip->ip_len = htons(ip_total_len);
   ip->ip_id = hdr_ip->ip_id;
-  ip->ip_off = hdr_ip->ip_off;
+  ip->ip_off = 0;
   ip->ip_ttl = INIT_TTL; 
   ip->ip_p = ip_protocol_icmp;
   ip->ip_sum = 0;
@@ -152,6 +151,14 @@ void sr_send_icmp_error_packet(uint8_t type,
   if (entry) {
     /* ARP en la cache */
     memcpy(eth->ether_dhost, entry->mac, ETHER_ADDR_LEN);
+    printf("MAC: %.2X:%.2X:%.2X:%.2X:%.2X:%.2X | Interface: %s | IP: %u.%u.%u.%u\n",
+       entry->mac[0], entry->mac[1], entry->mac[2], 
+       entry->mac[3], entry->mac[4], entry->mac[5],
+       iface->name,
+       (iface->ip >> 24) & 0xFF,
+       (iface->ip >> 16) & 0xFF,
+       (iface->ip >> 8) & 0xFF,
+       iface->ip & 0xFF);
     sr_send_packet(sr, packet, pkt_len, iface->name);
     free(entry);
     free(packet);
