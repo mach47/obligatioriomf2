@@ -113,6 +113,8 @@ void sr_send_icmp_error_packet(uint8_t type,
   sr_ip_hdr_t *ip = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
   sr_icmp_t3_hdr_t *icmp3 = (sr_icmp_t3_hdr_t *)((uint8_t *)ip + sizeof(sr_ip_hdr_t));
 
+  sr_ip_hdr_t *hdr_ip = (sr_ip_hdr_t *) ipPacket;  
+
   /* Ethernet: MAC destino, MAC origen, tipo (IPv4), Payload (IP) */
   memcpy(eth->ether_shost, iface->addr, ETHER_ADDR_LEN);
   eth->ether_type = htons(ethertype_ip); 
@@ -122,9 +124,9 @@ void sr_send_icmp_error_packet(uint8_t type,
   ip->ip_hl = 5;
   ip->ip_tos = 0;
   ip->ip_len = htons(ip_total_len);
-  ip->ip_id = htons(0);
-  ip->ip_off = htons(0);
-  ip->ip_ttl = INIT_TTL; /* Revisar */
+  ip->ip_id = hdr_ip->ip_id;
+  ip->ip_off = hdr_ip->ip_off;
+  ip->ip_ttl = INIT_TTL; 
   ip->ip_p = ip_protocol_icmp;
   ip->ip_sum = 0;
   ip->ip_src = iface->ip; 
