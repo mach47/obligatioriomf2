@@ -80,7 +80,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
         host_unreachable(sr, req);
         sr_arpreq_destroy(&(sr -> cache), req);
     }
-    else if (difftime(now, req -> sent) >= 1.0)
+    else if (difftime(now, req -> sent) >= 1.0 || req -> times_sent == 0)       /* agrego == 0  */
     {
         /*send otra + update */
         sr_arp_request_send(sr, req -> ip, req -> iface);
