@@ -101,7 +101,7 @@ void host_unreachable(struct sr_instance *sr, struct sr_arpreq *req) {
         paquete = paquete->next;
     }
     /* destruir ARP */
-    sr_arpreq_destroy(&sr->cache, req);
+    /* sr_arpreq_destroy(&sr->cache, req);  */
 }
 
 
