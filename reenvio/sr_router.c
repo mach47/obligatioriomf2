@@ -135,12 +135,11 @@ void sr_send_icmp_error_packet(uint8_t type,
     icmp3->unused = icmp_in->unused;
     icmp3->next_mtu = icmp_in->next_mtu;
     icmp3->icmp_sum = 0;
-    icmp3->icmp_sum = icmp3_cksum(icmp3, icmp_len);
-
-    ip->ip_sum = ip_cksum(ip, sizeof(sr_ip_hdr_t));
 
     /* Copy original IP header + first 8 bytes of payload into icmp data (menos en echo request/reply)*/
-    if (type != 8 && type != 0) { /* MEJORABLE PERO NO LO QUIERO HACER AHORA */
+    if (type != 8 && type != 0) { 
+      
+      /* MEJORABLE PERO NO LO QUIERO HACER AHORA 
       
       sr_ip_hdr_t *ip_old = (sr_ip_hdr_t *)(ipPacket + sizeof(sr_ethernet_hdr_t));
       uint16_t orig_hdr_len = ip_old->ip_hl * 4;            
@@ -148,8 +147,14 @@ void sr_send_icmp_error_packet(uint8_t type,
       uint16_t copy_len = orig_hdr_len + 8;                
       if (copy_len > orig_total_len) copy_len = orig_total_len;
 
-      memcpy(icmp3->data, ip_old, copy_len); 
+      memcpy(icmp3->data, ip_old, copy_len); */
+
+      memcpy(icmp3->data, ip_in, ICMP_DATA_SIZE);
     }
+
+    /* Checksums */
+    icmp3->icmp_sum = icmp3_cksum(icmp3, icmp_len);
+    ip->ip_sum = ip_cksum(ip, sizeof(sr_ip_hdr_t));
 
     /* Buscar entrada ARP para next_hop */
     struct sr_arpentry *entry = sr_arpcache_lookup(&(sr->cache), next_hop);
@@ -176,6 +181,8 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         sr_ethernet_hdr_t *eHdr) {
 
     sr_ip_hdr_t *hdr_ip = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+
+    print_hdrs(packet, len);
 
     /* ver si la iface dst es del sr */
     struct sr_if *found_if = sr_get_interface_given_ip(sr, hdr_ip -> ip_dst);
@@ -263,7 +270,7 @@ void sr_handle_arp_packet(struct sr_instance *sr,
 
   /* Imprimo el cabezal ARP */
   printf("*** -> It is an ARP packet. Print ARP header.\n");
-
+  print_hdr_arp(packet + sizeof(sr_ethernet_hdr_t));
   /*
   
   SUGERENCIAS:
@@ -324,6 +331,8 @@ void sr_handle_arp_packet(struct sr_instance *sr,
         sr_ethernet_hdr_t *eth_in = (sr_ethernet_hdr_t *)pkt -> buf;
         sr_ip_hdr_t *ip_in = (sr_ip_hdr_t *)(pkt -> buf + sizeof(sr_ethernet_hdr_t));
         sr_icmp_t3_hdr_t *icmp_in = (sr_icmp_t3_hdr_t *)((uint8_t *)ip_in + sizeof(sr_ip_hdr_t));
+
+        print_hdrs(pkt -> buf, pkt -> len);
 
         /* cambio direcciones eth para next hop */
         memcpy(eth_in->ether_dhost, arp_hdr -> ar_sha, ETHER_ADDR_LEN);      
