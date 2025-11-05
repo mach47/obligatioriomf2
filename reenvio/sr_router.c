@@ -139,9 +139,16 @@ void sr_send_icmp_error_packet(uint8_t type,
 
     ip->ip_sum = ip_cksum(ip, sizeof(sr_ip_hdr_t));
 
-    /* first 8 bytes of payload into icmp data (menos en echo request/reply)*/
-    if (type != 8 && type != 0) {
-      memcpy(packet, icmp_in, 8);  
+    /* Copy original IP header + first 8 bytes of payload into icmp data (menos en echo request/reply)*/
+    if (type != 8 && type != 0) { /* MEJORABLE PERO NO LO QUIERO HACER AHORA */
+      
+      sr_ip_hdr_t *ip_old = (sr_ip_hdr_t *)(ipPacket + sizeof(sr_ethernet_hdr_t));
+      uint16_t orig_hdr_len = ip_old->ip_hl * 4;            
+      uint16_t orig_total_len = ntohs(ip_old->ip_len);     
+      uint16_t copy_len = orig_hdr_len + 8;                
+      if (copy_len > orig_total_len) copy_len = orig_total_len;
+
+      memcpy(icmp3->data, ip_old, copy_len); 
     }
 
     /* Buscar entrada ARP para next_hop */
@@ -213,8 +220,9 @@ void sr_handle_ip_packet(struct sr_instance *sr,
         memcpy(eHdr->ether_shost, iface_salida -> addr, ETHER_ADDR_LEN);  
 
         sr_send_packet(sr, packet, len, iface_salida -> name);
-
         free(arp_entry);
+        
+        return; /* FALTABA ESTE RETURN DEL DIABLO POR ESO HABIAN DUPLICATES */
     }
     /* es para iface sr */
 
