@@ -76,9 +76,8 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
     time_t now = time(NULL);
     if (req -> times_sent >= 5) 
     {
-        /* destroy + ICMP a todos los que esperaban la req*/
+        /* enviar ICMP host unreachable a todos los que esperaban la req */
         host_unreachable(sr, req);
-        sr_arpreq_destroy(&(sr -> cache), req);
     }
     else if (difftime(now, req -> sent) >= 1.0 || req -> times_sent == 0)       /* agrego == 0  */
     {
@@ -94,12 +93,12 @@ void host_unreachable(struct sr_instance *sr, struct sr_arpreq *req) {
     struct sr_packet *paquete = req->packets;
     /* recorrer paquetes */
     while(paquete != NULL){
-        /* mandar mensaje ICMP */
-        sr_ip_hdr_t *header = (sr_ip_hdr_t *)(paquete + sizeof(sr_ethernet_hdr_t));
-        sr_send_icmp_error_packet(3,0,sr,header->ip_dst,paquete->buf);
+        sr_ip_hdr_t *header = (sr_ip_hdr_t *)(paquete->buf + sizeof(sr_ethernet_hdr_t));
+        sr_send_icmp_error_packet(3, 1, sr, header->ip_src, paquete->buf);
 
         paquete = paquete->next;
     }
+
     /* destruir ARP */
     sr_arpreq_destroy(&sr->cache, req);
 }

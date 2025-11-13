@@ -80,6 +80,7 @@ void sr_send_icmp_error_packet(uint8_t type,
     /* sin ruta */
     if (!rt) { 
       fprintf(stderr, "sr_send_icmp_error_packet: no route to %u\n", ntohl(ipDst));
+      print_addr_ip_int(ipDst);
       return;
     }  
 
@@ -156,6 +157,7 @@ void sr_send_icmp_error_packet(uint8_t type,
     icmp3->icmp_sum = icmp3_cksum(icmp3, icmp_len);
     ip->ip_sum = ip_cksum(ip, sizeof(sr_ip_hdr_t));
 
+    printf("pedro pica\n");
     /* Buscar entrada ARP para next_hop */
     struct sr_arpentry *entry = sr_arpcache_lookup(&(sr->cache), next_hop);
     if (entry) {
